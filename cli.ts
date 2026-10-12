@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, sym
 import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { commands as ghCommands, openPr, prHead } from './connectors/github.ts';
-import { HOME, ROOT, alive, listRuns, loadEnv, readMeta, runDir, writeMeta, type Meta } from './lib.ts';
+import { HOME, ROOT, WORK, alive, requireWork, workerEnv, listRuns, loadEnv, readMeta, runDir, writeMeta, type Meta } from './lib.ts';
 import { wait } from './watcher.ts';
 
 loadEnv();
@@ -32,7 +32,7 @@ function startTurn(id: string, promptFile: string): void {
   const out = openSync(join(runDir(id), 'stderr.log'), 'a');
   writeMeta(id, { state: 'running', turns: meta.turns + 1, question: undefined });
   const child = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', connector, id, promptFile],
-    { cwd: meta.worktree, detached: true, stdio: ['ignore', out, out] });
+    { cwd: meta.worktree, detached: true, stdio: ['ignore', out, out], env: workerEnv() });
   child.unref();
   if (readMeta(id).state === 'running') writeMeta(id, { pid: child.pid }); // a very fast turn may already be done
 }
@@ -43,7 +43,8 @@ function run(): string {
   const repo = git(resolve(flags.repo ?? '.'), 'rev-parse', '--show-toplevel');
   const id = flags.id ?? `${basename(repo)}-${randomBytes(2).toString('hex')}`;
   if (existsSync(runDir(id))) throw new Error(`run ${id} already exists`);
-  const worktree = join(HOME, 'worktrees', id);
+  requireWork();
+  const worktree = join(WORK, 'worktrees', id);
   const originHead = tryGit(repo, 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD')?.replace(/^origin\//, '');
   let base = flags.base ?? originHead ?? 'main';
   let branch = `helm/${id}`;

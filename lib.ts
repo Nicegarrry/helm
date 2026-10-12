@@ -1,4 +1,6 @@
-// Run state is a folder per run under $HELM_HOME/runs/<id>: meta.json, brief.md, log.txt, result.md.
+// Run state is a folder per run under $HELM_WORK/runs/<id>: meta.json, brief.md, log.txt, result.md.
+// $HELM_HOME (~/.helm) holds .env; $HELM_WORK (default $HELM_HOME) holds runs, worktrees and worker caches,
+// so they can live on an external drive.
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -6,7 +8,23 @@ import { fileURLToPath } from 'node:url';
 
 export const ROOT = dirname(fileURLToPath(import.meta.url));
 export const HOME = process.env.HELM_HOME ?? join(homedir(), '.helm');
-export const RUNS = join(HOME, 'runs');
+loadEnv();
+export const WORK = process.env.HELM_WORK?.replace(/^~(?=\/)/, homedir()) ?? HOME;
+export const RUNS = join(WORK, 'runs');
+
+/** Refuse to start when HELM_WORK is set but missing (e.g. the drive is unplugged), so nothing lands on the boot disk. */
+export function requireWork(): void {
+  if (process.env.HELM_WORK && !existsSync(WORK)) throw new Error(`HELM_WORK ${WORK} is not available (drive unplugged?)`);
+}
+
+/** Worker environment: temp files and package caches under $HELM_WORK/cache when HELM_WORK is set. */
+export function workerEnv(): NodeJS.ProcessEnv {
+  if (!process.env.HELM_WORK) return process.env;
+  const cache = join(WORK, 'cache');
+  for (const d of ['tmp', 'npm', 'pnpm-store', 'xdg']) mkdirSync(join(cache, d), { recursive: true });
+  return { ...process.env, TMPDIR: join(cache, 'tmp'), npm_config_cache: join(cache, 'npm'),
+    npm_config_store_dir: join(cache, 'pnpm-store'), XDG_CACHE_HOME: join(cache, 'xdg') };
+}
 
 export type State = 'running' | 'done' | 'failed' | 'question' | 'stopped';
 export type Meta = {
@@ -87,7 +105,7 @@ export const agentPrompt = (role: Meta['role']) =>
 
 /** Load $HELM_HOME/.env (KEY=value lines) without overriding the real environment. */
 export function loadEnv(): void {
-  const file = join(HOME, '.env');
+  const file = join(process.env.HELM_HOME ?? join(homedir(), '.helm'), '.env');
   if (!existsSync(file)) return;
   for (const line of readFileSync(file, 'utf8').split('\n')) {
     const m = line.match(/^\s*(?:export\s+)?([A-Z0-9_]+)\s*=\s*(.*?)\s*$/);

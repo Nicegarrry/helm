@@ -10,7 +10,7 @@ Pick the cheapest model that will get a ticket right first time, on a lane Nick 
 paying for, and a reviewer from a different family.
 
 ## Inputs
-- The ticket's difficulty and context estimate (`helm-plan`).
+- The ticket's difficulty and context estimate (the plan in `helm`).
 - What is available today: `helm models`. Model IDs below drift; verify them there.
 
 ## Lanes and priority
