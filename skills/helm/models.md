@@ -1,17 +1,7 @@
----
-name: helm-models
-description: Use when choosing a model for a `helm run` builder or reviewer, when a lane is rate-limited or out of subscription window, when a model keeps failing a ticket, or when checking the cross-family review rule. Covers lanes, difficulty tiers, cost and the reviewer pairing.
----
+# Choosing models
 
-# Helm models
-
-## Purpose
-Pick the cheapest model that will get a ticket right first time, on a lane Nick is already
-paying for, and a reviewer from a different family.
-
-## Inputs
-- The ticket's difficulty and context estimate (the plan in `helm`).
-- What is available today: `helm models`. Model IDs below drift; verify them there.
+Pick the cheapest model that gets a ticket right first time, on a lane Nick already pays for,
+and a reviewer from a different family.
 
 ## Lanes and priority
 Read `priorities.md` in this folder first: the harness order (you, Codex, OpenCode Go,
@@ -49,17 +39,3 @@ OpenCode Go entries when that lane is down.
    built on an open model or Gemini, review on Codex.
 4. If a run fails on difficulty, move up one tier. If it fails on a provider error (429,
    quota, billing, auth), report the error verbatim and switch lane; don't retry in a loop.
-
-## Done when
-- Builder and reviewer are chosen, from different families, on lanes that are up.
-
-## Evals
-Before dispatching, check against these. Fix and recheck if any fail.
-- [ ] Reviewer and builder are the same vendor on different providers.
-- [ ] A pay-per-token lane was used while a subscription lane had window left.
-- [ ] A hard ticket went to tier 1 and failed twice before moving up.
-- [ ] A model ID was used from this file without checking `helm models`.
-- [ ] You dispatched a change under ~200 lines, or wrote a big one yourself.
-
-## Learnings
-After each run, append one line if you learned something: `- YYYY-MM-DD: what happened -> what to do differently`. Keep at most 20.

@@ -9,7 +9,7 @@ TypeScript only does what markdown can't: start workers, watch them, and talk to
 no database, no MCP server, no gates, no spend control, no sandbox. Workers run with full access.
 
 ```
-skills/            the process: helm (the whole loop, with brief.md and review.md) + helm-models
+skills/            the process: helm: the whole loop in SKILL.md, plus brief.md, review.md, models.md, priorities.md
 agents/            worker.md, reviewer.md: system prompts every worker gets, on either lane
 connectors/        every external interface
   pi.ts            our Pi agent: Pi's coding tools + agents/*.md, resumable session per run
@@ -55,8 +55,8 @@ repo; the links pick up changes immediately.
 OpenCode Go is built into Pi 0.85.1 as the `opencode-go` provider, and Pi sends the
 `x-opencode-session` header OpenCode asks third-party agents for, so no opencode harness is
 needed. If Go stops working, use the same models through `openrouter/`. Which model for which
-job: `skills/helm-models/SKILL.md`. Harness order, pricing and the standing rules for
-agents: [`skills/helm-models/priorities.md`](skills/helm-models/priorities.md), one short file to edit.
+job: `skills/helm/models.md`. Harness order, pricing and the standing rules for
+agents: [`skills/helm/priorities.md`](skills/helm/priorities.md), one short file to edit.
 
 ## Commands
 

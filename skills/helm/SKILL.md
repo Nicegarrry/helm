@@ -1,6 +1,6 @@
 ---
 name: helm
-description: Use when Nick asks you to build, fix, or ship code in a repo, work a GitHub issue or backlog, or dispatch coding work to Pi or Codex workers with the `helm` CLI. The whole loop: chat, a short strategic apex on VG, plan and build, review, merge, ping Nick.
+description: Use when Nick asks you to build, fix, or ship code in a repo, work a GitHub issue or backlog, or dispatch coding work to Pi or Codex workers with the `helm` CLI. The whole loop: chat, a short strategic apex on VG, plan and build, model choice, review, merge, ping Nick.
 ---
 
 # Helm
@@ -15,7 +15,8 @@ decide, brief, check, review and merge. Nick reviews one thing: the apex.
    per round, each with your recommendation.
 2. **Apex (Nick reviews).** A 2-5 page strategic document: the goal, the approach, stack and
    tech choices, what it looks like when done, what is out of scope. Push it to VG as a Doc
-   and give Nick the link. Apply his comments. His approval covers everything through to merge.
+   and give Nick the link. If the VG tools (`vg_guide`, `vg_push_deck`) aren't installed,
+   write it as a Markdown file in the repo's `docs/` and give Nick its path. Apply his comments. His approval covers everything through to merge.
    Skip the apex for small, clear work (a bug, a well-specified issue): Nick's ask is the approval.
 3. **Plan and build (no review).** In one step, without stopping:
    - Write the detailed plan as one GitHub issue: the tickets as a checklist, each with its
@@ -24,7 +25,7 @@ decide, brief, check, review and merge. Nick reviews one thing: the apex.
      names other tickets depend on) and changes under ~200 lines yourself, first.
    - A ticket is one concern, one worker run, one PR, under half the model's context window.
      Tickets that touch different files run in parallel, at most 3-4 at once.
-   - Write each brief from `brief.md` in this folder, pick a model (`helm-models`), and
+   - Write each brief from `brief.md` in this folder, pick a model (`models.md`), and
      `helm run`. Start every independent ticket, then wait.
 4. **Review (no Nick).** Check each diff yourself, then get a review from a different model
    family (`review.md`). Fix every real blocking finding.
@@ -52,8 +53,11 @@ decide, brief, check, review and merge. Nick reviews one thing: the apex.
 
 ## Shipping
 
-1. `helm pr <id>`. The body says what changed, how it was verified, and `Closes #<n>` or the
-   plan issue.
+1. `helm pr <id>`, then set the body (`gh pr edit <n> --body-file <file>`), short enough for a phone:
+   - **Summary:** what changed, as a small diagram, tree or diff sketch when that is clearer.
+   - **Evidence:** the checks you ran at this head, before and after for the key acceptance check.
+   - **Merge danger:** one-way or two-way door; migrations, deletes, config, public contracts.
+   - `Closes #<n>`, or the plan issue.
 2. Watch CI in the background: `gh pr checks <n> --watch --fail-fast >/dev/null 2>&1; helm gh pr <n>`.
 3. Red: `helm gh fail <n>`. The change: steer the builder, check, `helm pr <id>` again. A flake:
    re-run once (`gh run rerun <run-id> --failed`); flaky twice, tell Nick.
