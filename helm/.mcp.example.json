@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "helm": {
-      "command": "node",
-      "args": ["/absolute/path/to/helm3/helm/bin/helm.js", "serve", "--stdio"]
-    }
-  }
-}
