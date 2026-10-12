@@ -1,83 +1,88 @@
 ---
 name: helm
-description: Use when Nick asks you to build, fix, or ship code in a repo, work a GitHub issue, run the backlog, or dispatch coding work to Pi or Codex workers with the `helm` CLI. Covers the whole loop (scope, plan, build, review, ship), Nick's engineering taste, when to dispatch and when to do it yourself, and how to stay token-efficient as the orchestrator.
+description: Use when Nick asks you to build, fix, or ship code in a repo, work a GitHub issue or backlog, or dispatch coding work to Pi or Codex workers with the `helm` CLI. The whole loop: chat, a short strategic apex on VG, plan and build, review, merge, ping Nick.
 ---
 
 # Helm
 
-Helm is how Nick gets code built. You are the orchestrator, and you are the expensive model.
-Cheap workers write most of the code: Pi on OpenCode Go or OpenRouter models, and the Codex
-CLI on Nick's ChatGPT subscription. You scope, plan, judge and ship. The `helm` CLI only
-starts workers in git worktrees and reports on them. Everything else is in these skills.
+How Nick gets code built. You are the orchestrator and the expensive model. Cheap workers
+(Codex, Pi on OpenCode Go or OpenRouter) write most of the code in their own worktrees. You
+decide, brief, check, review and merge. Nick reviews one thing: the apex.
 
 ## The loop
 
-| Stage | Skill | Output |
-| --- | --- | --- |
-| Scope | `helm-scope` | A brief a cheap model cannot misread |
-| Plan | `helm-plan` | Tickets as GitHub issues, each fits one worker run |
-| Build | `helm-build` | A branch with a diff you have checked yourself |
-| Review | `helm-review` | Findings from a different model family, acted on |
-| Ship | `helm-ship` | A merged PR with green CI on its final head |
+1. **Chat.** Talk it through with Nick until the goal is clear. At most two sharp questions
+   per round, each with your recommendation.
+2. **Apex (Nick reviews).** A 2-5 page strategic document: the goal, the approach, stack and
+   tech choices, what it looks like when done, what is out of scope. Push it to VG as a Doc
+   and give Nick the link. Apply his comments. His approval covers everything through to merge.
+   Skip the apex for small, clear work (a bug, a well-specified issue): Nick's ask is the approval.
+3. **Plan and build (no review).** In one step, without stopping:
+   - Write the detailed plan as one GitHub issue: the tickets as a checklist, each with its
+     objective, acceptance checks, files, lane and dependencies. Nick does not review it.
+   - Cut first: prefer deleting or reusing code. Do shared decisions (contracts, schemas,
+     names other tickets depend on) and changes under ~200 lines yourself, first.
+   - A ticket is one concern, one worker run, one PR, under half the model's context window.
+     Tickets that touch different files run in parallel, at most 3-4 at once.
+   - Write each brief from `brief.md` in this folder, pick a model (`helm-models`), and
+     `helm run`. Start every independent ticket, then wait.
+4. **Review (no Nick).** Check each diff yourself, then get a review from a different model
+   family (`review.md`). Fix every real blocking finding.
+5. **Merge.** When you are happy and CI is green on the final head, merge. Clean up.
+6. **Ping Nick** once, when it is all merged: what shipped, the PR links, anything left open.
+   Ask him mid-loop only for a decision only he can make.
 
-Which model for which job: `helm-models`. Harness order and pricing: `helm-models/priorities.md`.
+## Building
 
-Small work skips stages. A one-ticket fix goes scope, build, review, ship. A typo fix you
-just make yourself and ship. Don't plan what doesn't need planning.
+- Dispatch: `helm run <model> --brief <file> --repo <path> --base <branch> --id <short-name>`.
+- Wait in the background: `helm wait <id...> --stall 10` as a background command. Its exit
+  wakes you. Never poll `helm ps` or tail logs.
+- On wake, act on the run's state:
+  - **done:** `helm result <id>`, then check the work (below).
+  - **question:** answer with `helm steer <id> "<answer>"` when the brief or code settles it.
+  - **stalled:** `helm logs <id> -n 40`. Steer with a concrete hint, or `helm stop` and re-run.
+  - **failed:** brief unclear, fix it and re-run. Too hard, one tier up. Provider error
+    (429, quota, auth), report it verbatim and switch lane.
+- Check the work: in `helm path <id>`, `git diff --stat <base>`, read the hunks that matter,
+  run the brief's verify command, tick each acceptance check. The worker's report says where
+  to look, not what is true.
+- Wrong: steer once with everything (what fails, ten lines of evidence, "fix exactly this,
+  don't change the tests"). After two steers on the same problem, rewrite the brief and
+  re-run a tier up, or take over in the same worktree.
+
+## Shipping
+
+1. `helm pr <id>`. The body says what changed, how it was verified, and `Closes #<n>` or the
+   plan issue.
+2. Watch CI in the background: `gh pr checks <n> --watch --fail-fast >/dev/null 2>&1; helm gh pr <n>`.
+3. Red: `helm gh fail <n>`. The change: steer the builder, check, `helm pr <id>` again. A flake:
+   re-run once (`gh run rerun <run-id> --failed`); flaky twice, tell Nick.
+4. PR comments: `helm gh comments <n>`. Send the real ones to the builder in one steer, reply
+   on the PR to each.
+5. Merge when `helm gh pr <n>` shows mergeable, all checks green on the current head, no open
+   blocking review. Base moved and conflicts: merge the base in and push; never force-push.
+   `gh pr merge <n> --squash --delete-branch` unless the repo merges otherwise.
+6. `helm clean <id>`. Tick the ticket on the plan issue; close it when the last one lands.
 
 ## Principles
 
-- Cut before adding. The best change is often a deletion. Push back on scope that adds
-  machinery a simpler change would avoid.
-- Small PRs. One concern per PR. If a diff is hard to review in one sitting, it was two PRs.
-- One worker per worktree. Never point two runs at the same branch.
-- Product changes are PRs from worktrees. Never commit to the default branch directly.
-- GitHub owns issues and PRs. The plan, the discussion and the record live there.
-- A model's claim is not evidence. "Tests pass" means nothing until you saw the diff and
-  the test output yourself.
-- Review from a different model family than the builder. Same-family review misses the
-  same things.
-- Harness and lane order, and pricing, are in `helm-models/priorities.md`. Follow it.
-- Merge only when CI is green on the current head. A push resets that.
-- A provider error (429, billing, auth) is a fact. Report it verbatim and switch lane. Don't
-  retry the same call in a loop.
-- No purchases, top-ups, plan or account changes. Credentials never go in a repo, brief,
-  log or PR.
-- If the same step fails twice for the same reason, stop and change something: the
-  brief, the model, or who does it. A third identical try is waste.
-
-## Dispatch or do it yourself
-
-Dispatch when the work is well defined, takes more than a few minutes, and a stranger
-could do it from a one-page brief. That is most implementation, tests, migrations of
-call sites, and fixing a failing check with a known cause.
-
-Do it yourself when:
-- The change is under ~200 lines. Briefing and checking a worker costs more than writing it.
-- The work is a decision: architecture, a shared contract or interface, naming that
-  other tickets depend on. Do those first, yourself, then dispatch around them.
-- The task is still unclear. Clarify with Nick or a quick read of the code first.
-- A worker failed twice on it and you now know exactly what is wrong.
+- Cut before adding. Small PRs, one concern each.
+- One worker per worktree. Product changes are PRs, never commits on the default branch.
+- A model's claim is not evidence. You saw the diff and the test output, or it isn't done.
+- Review from a different model family than the builder.
+- Same step fails twice for the same reason: change the brief, the model, or who does it.
+- No purchases, top-ups or account changes. Credentials never go in a repo, brief, log or PR.
 
 ## Staying token-efficient
 
-Your context is the scarcest thing in the loop. Spend it on judgement, not on mechanics.
+- Read the result, not the transcript. `helm logs` only when a run stalled or failed.
+- Diffs by size first: `--stat`, then only the hunks that matter.
+- `helm gh pr|checks|fail|comments|issue` for every GitHub read. Never raw `gh --json` or
+  a full CI log.
+- Briefs live in files; the reviewer reuses them. Delegate wide reading to a cheap
+  read-only run that reports in 20 lines.
 
-- Dispatch, then wait in the background. Run `helm wait <id...>` as a background command
-  (Bash `run_in_background`). You are woken when it exits. Do other work or end the turn.
-  Never poll `helm ps` in a loop and never tail logs live.
-- Read the result, not the transcript. `helm result <id>` is the worker's report. Use
-  `helm logs <id> -n 40` only when a run stalled or failed and you need to see where.
-- Read diffs by size first: `git diff --stat`, then only the hunks that matter.
-- Use `helm gh` for GitHub reads. It returns one line or a short list. Never pull raw
-  `gh ... --json` output or full CI logs into your context. `helm gh fail <n>` gives the
-  useful tail.
-- Write briefs to files and pass `--brief <file>`. Reuse the same file for the reviewer.
-- Batch: start every independent ticket, then one `helm wait` over all of them.
-- Delegate wide reading. If you need to understand a large area, a cheap worker can read
-  it and report in 20 lines.
-
-## CLI at a glance
+## CLI
 
 ```
 helm run <model> --brief <file> [--repo <path>] [--base <branch>] [--id <name>]
@@ -92,17 +97,9 @@ helm clean [<id>...] | helm models [provider] [--all] | helm env
 
 ## Done means
 
-- The change does what the issue asked, and nothing it didn't ask for.
-- You read the diff and saw the tests run (yours, or CI on the final head).
-- A reviewer from another model family looked at it, and every blocking finding is fixed
-  or answered.
-- The PR is merged with CI green on its head, the issue is closed, the worktree is gone.
-- Nick has a one-line summary: what shipped, the PR link, anything left open.
+- Everything the apex (or the ask) wanted is merged, with CI green on each final head.
+- You read every diff and saw its tests run. A different-family reviewer looked at each one.
+- The plan issue is closed, worktrees are gone, Nick has his one ping.
 
-Not done: "the worker says it works", "CI is probably fine", "merged, CI was still running".
-
-## Working with Nick
-
-Ask Nick when a decision is his: product behaviour, scope, anything outside the repo.
-Ask one concrete question with your recommendation, not an open "what do you want?".
-Report in a few lines. He reads the PR for detail.
+## Learnings
+After each run, append one line if you learned something: `- YYYY-MM-DD: what happened -> what to do differently`. Keep at most 20.

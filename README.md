@@ -9,7 +9,7 @@ TypeScript only does what markdown can't: start workers, watch them, and talk to
 no database, no MCP server, no gates, no spend control, no sandbox. Workers run with full access.
 
 ```
-skills/            the process: helm (the loop and taste) + one skill per stage + helm-models
+skills/            the process: helm (the whole loop, with brief.md and review.md) + helm-models
 agents/            worker.md, reviewer.md: system prompts every worker gets, on either lane
 connectors/        every external interface
   pi.ts            our Pi agent: Pi's coding tools + agents/*.md, resumable session per run
@@ -17,7 +17,7 @@ connectors/        every external interface
   github.ts        `gh`, printed as a few compact lines
 cli.ts             the `helm` command
 watcher.ts         `helm wait`: wakes the orchestrator when a run ends, asks or stalls
-lib.ts             run folders: $HELM_HOME/runs/<id>/{meta.json,brief.md,log.txt,result.md}
+lib.ts             run folders: $HELM_WORK/runs/<id>/{meta.json,brief.md,log.txt,result.md}
 ```
 
 This is Helm v5. Helm v4 (MCP server, daemon, SQLite, gates) is on the `helm-v4-final` branch.
@@ -35,6 +35,10 @@ export PATH="$PWD/bin:$PATH"      # or symlink bin/helm onto your PATH
 cp .env.example ~/.helm/.env      # then fill in OPENCODE_API_KEY / OPENROUTER_API_KEY
 helm env && helm models
 ```
+
+Set `HELM_WORK` in `~/.helm/.env` to keep runs, worktrees and worker caches (TMPDIR, npm/pnpm,
+XDG cache) on another drive, e.g. `HELM_WORK=/Volumes/T7/factory-scratch/helm`. `helm run`
+refuses to start when it is set but missing.
 
 Skills are plain Claude Code skills (folders with `SKILL.md`), not a plugin. Edit them in this
 repo; the links pick up changes immediately.
