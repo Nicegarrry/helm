@@ -6,7 +6,7 @@ description: Use when turning a GitHub issue, a bug report, or an idea from Nick
 # Helm scope
 
 ## Purpose
-Turn an issue or idea into a brief that a cheap model in a fresh worktree can finish without
+Turn a GitHub issue (the ticket) into a brief that a cheap model in a fresh worktree can finish without
 asking you anything. The brief is the whole contract: the worker sees nothing else.
 
 ## Inputs
@@ -31,7 +31,7 @@ asking you anything. The brief is the whole contract: the worker sees nothing el
 
 ```markdown
 # <short title>
-Repo: <path>   Base: <branch>   Issue: #<n>   Size: S (~100 lines)
+Repo: <path>   Base: <branch>   Issue: #<n>   Context: ~<N>k tokens
 
 ## Objective
 <What changes and why, in one or two sentences.>

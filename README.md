@@ -50,7 +50,8 @@ repo; the links pick up changes immediately.
 OpenCode Go is built into Pi 0.85.1 as the `opencode-go` provider, and Pi sends the
 `x-opencode-session` header OpenCode asks third-party agents for, so no opencode harness is
 needed. If Go stops working, use the same models through `openrouter/`. Which model for which
-job: `skills/helm-models/SKILL.md`.
+job: `skills/helm-models/SKILL.md`. Harness order, pricing and the standing rules for
+agents: [`skills/helm-models/priorities.md`](skills/helm-models/priorities.md), one short file to edit.
 
 ## Commands
 

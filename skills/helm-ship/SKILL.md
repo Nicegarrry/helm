@@ -53,7 +53,7 @@ Before reporting done, check against these. Fix and recheck if any fail.
 - [ ] A review comment was ignored without a reply.
 - [ ] Force-pushed or rebased a pushed branch.
 - [ ] Pulled raw `gh` JSON or a full CI log into context.
-- [ ] The PR is too big to review; it should have been split in `helm-plan`.
+- [ ] The PR mixes several concerns; the issue should have been split in `helm-plan`.
 
 ## Learnings
 After each run, append one line if you learned something: `- YYYY-MM-DD: what happened -> what to do differently`. Keep at most 20.

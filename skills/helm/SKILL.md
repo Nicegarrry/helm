@@ -15,12 +15,12 @@ starts workers in git worktrees and reports on them. Everything else is in these
 | Stage | Skill | Output |
 | --- | --- | --- |
 | Scope | `helm-scope` | A brief a cheap model cannot misread |
-| Plan | `helm-plan` | Worktree-sized tickets, in order, with lanes |
+| Plan | `helm-plan` | Tickets as GitHub issues, each fits one worker run |
 | Build | `helm-build` | A branch with a diff you have checked yourself |
 | Review | `helm-review` | Findings from a different model family, acted on |
 | Ship | `helm-ship` | A merged PR with green CI on its final head |
 
-Which model for which job: `helm-models`.
+Which model for which job: `helm-models`. Harness order and pricing: `helm-models/priorities.md`.
 
 Small work skips stages. A one-ticket fix goes scope, build, review, ship. A typo fix you
 just make yourself and ship. Don't plan what doesn't need planning.
@@ -37,8 +37,7 @@ just make yourself and ship. Don't plan what doesn't need planning.
   the test output yourself.
 - Review from a different model family than the builder. Same-family review misses the
   same things.
-- Prefer subscription lanes ($0 marginal) while their window allows, then cheap open
-  models. Pay-per-token is the fallback.
+- Harness and lane order, and pricing, are in `helm-models/priorities.md`. Follow it.
 - Merge only when CI is green on the current head. A push resets that.
 - A provider error (429, billing, auth) is a fact. Report it verbatim and switch lane. Don't
   retry the same call in a loop.
@@ -54,7 +53,7 @@ could do it from a one-page brief. That is most implementation, tests, migration
 call sites, and fixing a failing check with a known cause.
 
 Do it yourself when:
-- Writing the brief would take longer than the change (roughly under 20 lines, one file).
+- The change is under ~200 lines. Briefing and checking a worker costs more than writing it.
 - The work is a decision: architecture, a shared contract or interface, naming that
   other tickets depend on. Do those first, yourself, then dispatch around them.
 - The task is still unclear. Clarify with Nick or a quick read of the code first.
