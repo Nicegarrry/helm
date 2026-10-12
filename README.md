@@ -1,4 +1,4 @@
-# Helm
+# Helm v5
 
 How Nick gets code built. An orchestrator agent (Claude Code) scopes, plans, reviews and ships;
 cheap workers write the code in their own git worktrees: Pi on OpenCode Go or OpenRouter models,
@@ -20,7 +20,8 @@ watcher.ts         `helm wait`: wakes the orchestrator when a run ends, asks or 
 lib.ts             run folders: $HELM_HOME/runs/<id>/{meta.json,brief.md,log.txt,result.md}
 ```
 
-The previous Helm (MCP server, daemon, SQLite, gates) is on the `helm-v4-final` branch.
+This is Helm v5. Helm v4 (MCP server, daemon, SQLite, gates) is on the `helm-v4-final` branch.
+To move a machine and this repo off v4, see [Migrating from v4](#migrating-from-v4).
 
 ## Setup
 
@@ -87,3 +88,34 @@ report line at the end of it (`done`, `failed`, `question`). `helm steer` starts
 connector again, which resumes the stored Pi session file or Codex thread. `helm wait`
 counts a run as stalled when `log.txt` hasn't changed for `--stall` minutes, and as failed
 when its process is gone without a report.
+
+## Migrating from v4
+
+One-time cleanup, written for an agent to run on Nick's machine from a checkout of this repo on
+`main`. Each step is safe to re-run.
+
+1. **Stop the v4 daemon.** From a v4 checkout, `helm shutdown`. Without one, stop whatever holds
+   the daemon port (default 4747, or `port` in `~/.helm/serve.json`): `lsof -ti tcp:4747 | xargs -r kill`.
+2. **Remove the v4 MCP server** from every repo's `.mcp.json` (the `helm` entry that runs
+   `helm.js serve --stdio`) and from Codex's config if it was added there. Delete `.mcp.json`
+   if nothing is left in it.
+3. **Clear v4 state from `~/.helm`.** Delete `helm.sqlite*`, `serve.json`, `helm.json`, `repos/`
+   and v4 logs. Keep `.env`, `runs/` and `worktrees/`; those are v5's. Run `git worktree prune`
+   in each repo v4 worked on.
+4. **Install v5.** `npm install`, then `bin/helm install` (links the skills into
+   `~/.claude/skills`), put `bin/` on `PATH`, copy `.env.example` to `~/.helm/.env` and fill in
+   `OPENCODE_API_KEY` (and `OPENROUTER_API_KEY` for the fallback). Check with `helm env` and
+   `helm models`.
+5. **Delete stale branches.** Everything except `main` and `helm-v4-final` is v4 work: worker
+   branches (`helm/w-*`, `worker-*`), `wave*` branches, and old `feat/`, `fix/`, `docs/`,
+   `prep/`, `salvage/` branches. The repo squash-merges, so git shows most of them as unmerged
+   even when their PR landed. Branches that never had a PR are gone for good once deleted.
+
+   ```sh
+   git fetch --prune origin
+   git branch -r | sed 's#^ *origin/##' | grep -vE '^(main|HEAD.*|helm-v4-final)$' \
+     | xargs -n 20 git push origin --delete
+   git branch | grep -vE '^\*|^ *(main|helm-v4-final)$' | xargs -r git branch -D
+   ```
+6. **Stop branches piling up.** Turn on "Automatically delete head branches" for the repo:
+   `gh repo edit --delete-branch-on-merge`.
