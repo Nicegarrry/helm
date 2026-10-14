@@ -107,3 +107,7 @@ helm clean [<id>...] | helm models [provider] [--all] | helm env
 
 ## Learnings
 After each run, append one line if you learned something: `- YYYY-MM-DD: what happened -> what to do differently`. Keep at most 20.
+- 2026-10-12: SDK `tools` list without ToolSearch loads every MCP tool eagerly (155k vs 25k tokens) -> always keep ToolSearch when trimming built-in tools
+- 2026-10-13: GitHub REST code search returned 0 hits on Nick's private repos -> test an external API with gh before briefing a worker on it
+- 2026-10-13: workers' e2e blocked without .env.local in helm worktrees -> copy the gitignored dev .env.local into each worktree at dispatch for UI tickets
+- 2026-10-14: a client component using a provider (Clerk useAuth) passed tests and build but crashed every prod page; preview lacked the env that mounts it -> for UI tickets, load the real page on prod (or a preview with prod-like env) right after merge, and check the provider tree in review
