@@ -18,6 +18,7 @@ const lastFile = join(runDir(id), `codex-last-${meta.turns}.md`);
 const common = ['--json', '-m', model, '-o', lastFile, '--skip-git-repo-check',
   '-c', 'approval_policy="never"', '-c', 'sandbox_mode="danger-full-access"'];
 if (effort) common.push('-c', `model_reasoning_effort="${effort}"`);
+if (process.env.HELM_CODEX_TIER) common.push('-c', `service_tier="${process.env.HELM_CODEX_TIER}"`); // e.g. fast
 const args = meta.session
   ? ['exec', 'resume', meta.session, ...common, '-']
   : ['exec', ...common, '-C', meta.worktree, '-'];
