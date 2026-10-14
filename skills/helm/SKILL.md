@@ -111,3 +111,5 @@ After each run, append one line if you learned something: `- YYYY-MM-DD: what ha
 - 2026-10-13: GitHub REST code search returned 0 hits on Nick's private repos -> test an external API with gh before briefing a worker on it
 - 2026-10-13: workers' e2e blocked without .env.local in helm worktrees -> copy the gitignored dev .env.local into each worktree at dispatch for UI tickets
 - 2026-10-14: a client component using a provider (Clerk useAuth) passed tests and build but crashed every prod page; preview lacked the env that mounts it -> for UI tickets, load the real page on prod (or a preview with prod-like env) right after merge, and check the provider tree in review
+- 2026-10-14: resumed a run with --base wip/<id> after a restart; helm pr then opened the PR against the wip branch and the merge missed main -> for resumed runs open the PR with gh pr create --base main
+- 2026-10-14: stacked a ticket on a sibling branch; squash-merging the sibling deleted the base and `helm pr` then failed (and `helm clean` removed the worktree) -> for stacked runs open the PR with `gh pr create --base main` before any clean, and check the branch is pushed first
