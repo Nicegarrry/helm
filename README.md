@@ -20,7 +20,14 @@ watcher.ts         `helm wait`: wakes the orchestrator when a run ends, asks or 
 lib.ts             run folders: $HELM_WORK/runs/<id>/{meta.json,brief.md,log.txt,result.md}
 ```
 
-This is Helm v5. Helm v4 (MCP server, daemon, SQLite, gates) is on the `helm-v4-final` branch.
+This is Helm v5 (repo `Nicegarrry/helm`, formerly `helm3`).
+
+| Version | What it was | Where |
+|---|---|---|
+| v3 | Durable control plane design (spec, issues #1-#140) | closed issues in this repo; spec in the archived `helm-cli` repo |
+| v4 | MCP server, daemon, SQLite, gates | git tag `archive/helm-v4-final` |
+| v5 | Markdown skills plus a small CLI, no daemon | `main` |
+
 To move a machine and this repo off v4, see [Migrating from v4](#migrating-from-v4).
 
 ## Setup
@@ -110,16 +117,16 @@ One-time cleanup, written for an agent to run on Nick's machine from a checkout 
    `~/.claude/skills`), put `bin/` on `PATH`, copy `.env.example` to `~/.helm/.env` and fill in
    `OPENCODE_API_KEY` (and `OPENROUTER_API_KEY` for the fallback). Check with `helm env` and
    `helm models`.
-5. **Delete stale branches.** Everything except `main` and `helm-v4-final` is v4 work: worker
+5. **Delete stale branches.** Everything except `main` is v4 work: worker
    branches (`helm/w-*`, `worker-*`), `wave*` branches, and old `feat/`, `fix/`, `docs/`,
    `prep/`, `salvage/` branches. The repo squash-merges, so git shows most of them as unmerged
    even when their PR landed. Branches that never had a PR are gone for good once deleted.
 
    ```sh
    git fetch --prune origin
-   git branch -r | sed 's#^ *origin/##' | grep -vE '^(main|HEAD.*|helm-v4-final)$' \
+   git branch -r | sed 's#^ *origin/##' | grep -vE '^(main|HEAD.*)$' \
      | xargs -n 20 git push origin --delete
-   git branch | grep -vE '^\*|^ *(main|helm-v4-final)$' | xargs -r git branch -D
+   git branch | grep -vE '^\*|^ *main$' | xargs -r git branch -D
    ```
 6. **Stop branches piling up.** Turn on "Automatically delete head branches" for the repo:
    `gh repo edit --delete-branch-on-merge`.
