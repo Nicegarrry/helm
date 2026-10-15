@@ -7,6 +7,7 @@ import { basename, join, resolve } from 'node:path';
 import { commands as ghCommands, openPr, prHead } from './connectors/github.ts';
 import { HOME, ROOT, WORK, alive, requireWork, workerEnv, listRuns, loadEnv, readMeta, runDir, writeMeta, type Meta } from './lib.ts';
 import { wait } from './watcher.ts';
+import { fleet } from './fleet.ts';
 
 loadEnv();
 const [cmd = 'help', ...rest] = process.argv.slice(2);
@@ -14,7 +15,7 @@ const flags: Record<string, string> = {};
 const args: string[] = [];
 for (let i = 0; i < rest.length; i++) {
   const a = rest[i];
-  if (a === '--draft' || a === '--all') flags[a.slice(2)] = '1';
+  if (a === '--draft' || a === '--all' || a === '--json') flags[a.slice(2)] = '1';
   else if (a.startsWith('--')) flags[a.slice(2)] = rest[++i] ?? '';
   else if (a === '-R' || a === '-n') flags[a.slice(1)] = rest[++i] ?? '';
   else args.push(a);
@@ -92,16 +93,17 @@ function ps(): string {
 
 function pr(): string {
   const meta = readMeta(args[0]);
+  const base = flags.base ?? meta.base;
   if (meta.role === 'review') throw new Error('review runs have no branch to open');
   if (git(meta.worktree, 'status', '--porcelain')) {
     git(meta.worktree, 'add', '-A');
     git(meta.worktree, 'commit', '-m', meta.summary?.slice(0, 72) || `helm: ${meta.id}`);
   }
-  if (git(meta.worktree, 'rev-list', '--count', `origin/${meta.base}..HEAD`) === '0') throw new Error('no commits to open a PR with');
+  if (git(meta.worktree, 'rev-list', '--count', `origin/${base}..HEAD`) === '0') throw new Error('no commits to open a PR with');
   const brief = readFileSync(join(runDir(meta.id), 'brief.md'), 'utf8');
   const title = flags.title ?? (meta.summary?.split(/[.\n]/)[0].slice(0, 72) || brief.split('\n')[0].replace(/^#+\s*/, '').slice(0, 72));
   const body = `${meta.summary ?? ''}\n\n<details><summary>Brief</summary>\n\n${brief}\n</details>\n\nBuilt by \`${meta.model}\` (helm run ${meta.id}).`;
-  return openPr(meta.worktree, meta.branch, meta.base, title, body, !!flags.draft);
+  return openPr(meta.worktree, meta.branch, base, title, flags['body-file'] ? readInput(flags['body-file']) : body, !!flags.draft);
 }
 
 function stop(): string {
@@ -113,7 +115,7 @@ function stop(): string {
 
 /** Remove finished runs' worktrees (branches stay); `--all` also drops their run folders. */
 function clean(): string {
-  const done = listRuns().filter((m) => m.state !== 'running' && (!args.length || args.includes(m.id)));
+  const done = listRuns().filter((m) => (m.state !== 'running' || !alive(m.pid)) && (!args.length || args.includes(m.id)));
   for (const m of done) {
     tryGit(m.repo, 'worktree', 'remove', '--force', m.worktree);
     if (flags.all !== undefined || args.length) rmSync(runDir(m.id), { recursive: true, force: true });
@@ -141,6 +143,7 @@ function env(): string {
 async function main(): Promise<string> {
   switch (cmd) {
     case 'run': return run();
+    case 'fleet': return fleet(args, flags);
     case 'steer': return steer();
     case 'ps': return ps();
     case 'logs': return readFileSync(join(runDir(args[0]), 'log.txt'), 'utf8').trimEnd().split('\n').slice(-Number(flags.n ?? 40)).join('\n');

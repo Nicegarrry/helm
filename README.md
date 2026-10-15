@@ -6,7 +6,7 @@ or the Codex CLI on the ChatGPT subscription.
 
 Markdown is the code. The process lives in `skills/`, the worker prompts in `agents/`. The
 TypeScript only does what markdown can't: start workers, watch them, and talk to GitHub. No daemon,
-no database, no MCP server, no gates, no spend control, no sandbox. Workers run with full access.
+no database, no MCP server, no spend control, no sandbox. Workers run with full access.
 
 ```
 skills/            the process: helm: the whole loop in SKILL.md, plus brief.md, review.md, models.md, priorities.md
@@ -17,6 +17,7 @@ connectors/        every external interface
   github.ts        `gh`, printed as a few compact lines
 cli.ts             the `helm` command
 watcher.ts         `helm wait`: wakes the orchestrator when a run ends, asks or stalls
+fleet.ts           foreground batch of briefs: dispatch, local gate, serial PR landing, resume
 lib.ts             run folders: $HELM_WORK/runs/<id>/{meta.json,brief.md,log.txt,result.md}
 ```
 
@@ -72,6 +73,10 @@ helm run <model> --brief <file|-> [--repo path] [--base branch] [--id name]
                                   new worktree on helm/<id>, detached worker; prints the id
 helm run <model> --review <branch|pr#> --brief <file>
                                   read-only reviewer on a detached worktree of that branch
+helm fleet <dir|glob> --model <m> --repo <path> [--max 4] [--gate "<cmd>"]
+                                  [--land pr|none] [--retry-gate 90]
+helm fleet status [--json] | helm fleet resume
+                                  foreground batch; one line on completion or judgement needed
 helm wait [<id>...] [--stall 10]  block until a run is done/failed/question/stalled; one line out.
                                   Run it in the background: its exit is the ping. HELM_NOTIFY too.
 helm steer <id> "<message>"       next turn in the same session (or --file <path>)
@@ -99,6 +104,55 @@ report line at the end of it (`done`, `failed`, `question`). `helm steer` starts
 connector again, which resumes the stored Pi session file or Codex thread. `helm wait`
 counts a run as stalled when `log.txt` hasn't changed for `--stall` minutes, and as failed
 when its process is gone without a report.
+
+## Fleet
+
+Use a fleet for independent, approved briefs with a shared gate. Each Markdown file in a folder
+(or matched by a quoted glob) becomes one run; its file stem is its id. Stems must be unique and
+unused in `HELM_WORK/runs`. Fleet snapshots the briefs and appends:
+"Autonomy: decide skips and out-of-scope calls yourself; escalate only when judgement is needed."
+
+```sh
+helm fleet ./briefs --model codex/gpt-6.1 --repo ./project --max 3 --gate 'npm test'
+helm fleet './briefs/batch-*.md' --model codex/gpt-6.1 --repo ./project --land none
+helm fleet status
+helm fleet status --json
+helm fleet resume
+```
+
+The foreground loop saves `$HELM_WORK/runs/<fleet-id>/fleet.json` atomically. `status` and
+`resume` select the latest fleet; only one controller may run at a time. Killing it leaves detached
+workers running. `resume` picks up their results and skips landed briefs, including a PR merged
+just before a crash. An unfinished fleet must be resumed before starting another one.
+
+`--max` limits running workers (default 4). Before each dispatch, fleet checks free memory and
+available disk on `HELM_WORK`. Defaults are 1024 MiB memory and 2048 MiB disk, adjustable with
+`HELM_FLEET_MIN_MEMORY_MB` and `HELM_FLEET_MIN_DISK_MB` (0 disables that threshold). Low capacity
+keeps briefs queued and appears in status; the loop checks again every half second. It never
+rejects a brief for low capacity.
+
+On `done`, fleet fetches and merges the origin default branch (`origin/main` on this repo),
+commits any worker leftovers, and runs `--gate` in the worktree. Omitting `--gate` uses `true`,
+so supply the repo's actual verification command for shipping. Gate attempts are serialised,
+with one delayed retry after failure (`--retry-gate` seconds, default 90). Output from both
+attempts, including the gate's table/verdict, goes in the PR body. Logs stay in the fleet folder.
+
+With `--land pr` (default), fleet calls `helm pr` against the GitHub default branch, waits for
+pending checks, squash-merges the tested head, then calls `helm clean`. Real CI failures stop it.
+If Actions has no checks or reports a billing/disabled-Actions annotation, it comments that the
+passing local gate is the evidence. It uses ordinary merges and respects branch protection.
+`--land none` marks a gated brief `landed` and retains its worktree, without pushing or using GitHub.
+
+A question, failure, ten-minute stall, merge conflict or second gate failure exits nonzero with
+one line in the `helm wait` format; the worktree stays for inspection. Other detached workers
+continue. Inspect the result/logs, steer the worker or fix its worktree, then `helm fleet resume`;
+items needing review get a fresh gate attempt. Status lists `queued`, `running`, `gate`, `landed`
+and `needs-review`, with totals (`--json` includes state and totals). Helm sends no Slack messages.
+`helm clean` also accepts dead runs whose recorded worker process no longer exists.
+
+No-spend integration verification: `node --test tests/fleet.test.ts` (real temporary git repos,
+stubbed Codex and GitHub). Node runs these TypeScript sources directly; syntax-check with
+`node --check cli.ts`, `node --check fleet.ts` and `node --check connectors/github.ts`.
 
 ## Migrating from v4
 
