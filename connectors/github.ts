@@ -1,8 +1,9 @@
 // GitHub through `gh`, printed as a few compact lines instead of raw JSON.
 // helm gh pr|checks|fail|comments|issue <n> [-R owner/repo]
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
+import { promisify } from 'node:util';
 
-const gh = (args: string[], cwd?: string) => execFileSync('gh', args, { cwd, encoding: 'utf8', maxBuffer: 32 << 20 });
+const gh = (args: string[], cwd?: string) => execFileSync('gh', args, { cwd, encoding: 'utf8', maxBuffer: 32 << 20, stdio: ['ignore', 'pipe', 'pipe'] });
 const ghJson = (args: string[], cwd?: string) => JSON.parse(gh(args, cwd));
 const trim = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}…` : s).trim();
 
@@ -96,6 +97,43 @@ export function openPr(cwd: string, branch: string, base: string, title: string,
 export function prHead(n: string, cwd: string): { branch: string; base: string } {
   const p = ghJson(['pr', 'view', n, '--json', 'headRefName,baseRefName'], cwd);
   return { branch: p.headRefName, base: p.baseRefName };
+}
+
+export const defaultBranch = (cwd: string): string => ghJson(['repo', 'view', '--json', 'defaultBranchRef'], cwd).defaultBranchRef.name;
+export function fleetPrState(cwd: string, branch: string): any {
+  try { return ghJson(['pr', 'view', branch, '--json', PR_FIELDS], cwd); }
+  catch (err) { if (/no pull requests? found/i.test(String(err.stderr))) return undefined; throw err; }
+}
+
+/** One landing pass; pending checks yield to the fleet loop. Never override branch protection. */
+export async function landFleetPr(cwd: string, branch: string, base: string, head: string, bodyFile: string, signal: AbortSignal): Promise<boolean> {
+  const call = async (...args: string[]) => (await promisify(execFile)('gh', args, { cwd, signal, encoding: 'utf8' })).stdout;
+  const p = JSON.parse(await call('pr', 'view', branch, '--json', PR_FIELDS));
+  if (p.baseRefName !== base || p.headRefOid !== head) throw new Error('PR base/head differs from gated branch');
+  if (p.state === 'MERGED') return true;
+  if (p.state !== 'OPEN') throw new Error(`PR is ${p.state}`);
+  await call('pr', 'edit', branch, '--body-file', bodyFile);
+  const cs = checks(p.statusCheckRollup);
+  if (cs.some((c) => c.state === 'pending')) return false;
+  if (!cs.length) {
+    const runs = JSON.parse(await call('run', 'list', '--commit', head, '--json', 'status,conclusion'));
+    if (runs.some((r: any) => r.status !== 'completed')) return false;
+    if (runs.some((r: any) => !['success', 'neutral', 'skipped'].includes(r.conclusion))) throw new Error('Actions failed without check details; inspect the workflow run');
+  }
+  const failed = cs.some((c) => c.state === 'fail');
+  if (failed) {
+    const repo = JSON.parse(await call('repo', 'view', '--json', 'nameWithOwner')).nameWithOwner;
+    const runs = JSON.parse(await call('api', `repos/${repo}/commits/${head}/check-runs`)).check_runs;
+    for (const c of p.statusCheckRollup.filter((c: any) => checks([c])[0].state === 'fail')) {
+      const run = runs.find((r: any) => r.html_url === c.detailsUrl && r.name === c.name);
+      const annotations = run ? await call('api', `repos/${repo}/check-runs/${run.id}/annotations`) : '';
+      if (!/billing|spending limit|payment|actions (?:is|are|has been) disabled/i.test(annotations)) throw new Error(`CI failed: ${c.name ?? c.context}`);
+    }
+  }
+  if (!cs.length || failed) await call('pr', 'comment', branch, '--body', `${failed ? 'GitHub Actions cannot run' : 'GitHub Actions reports no checks'} for this head. The passing local gate and its output in the PR body are the evidence.`);
+  // Avoid --delete-branch: gh cannot delete a local branch checked out in a worker worktree.
+  await call('pr', 'merge', branch, '--squash', '--match-head-commit', head);
+  return JSON.parse(await call('pr', 'view', branch, '--json', 'state')).state === 'MERGED';
 }
 
 export const commands: Record<string, (n: string, repo: string[]) => string> = { pr, checks: prChecks, fail, comments, issue };

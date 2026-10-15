@@ -36,6 +36,23 @@ decide, brief, check, review and merge. Nick reviews one thing: the apex.
 
 ## Building
 
+- For a batch of independent, approved briefs with a shared local gate, use
+  `helm fleet <dir|'glob'> --model <m> --repo <path> --max 4 --gate '<verify command>'`.
+  Run it in the background like `helm wait`; its one-line exit wakes you only on completion
+  or judgement needed. Give briefs unique, unused file stems; those become the run ids.
+  Fleet appends the autonomy clause, waits for memory/disk capacity, merges the origin default
+  branch before gating, retries a failing gate once after 90 seconds (`--retry-gate`), and lands
+  passing runs serially through PR, squash merge and clean. It always targets the repo default
+  branch, including when your checkout is on a wip branch. Supply a real gate: the default is `true`.
+- Inspect `helm fleet status` (or `--json` for automation). A question, failure, ten-minute stall,
+  conflict or second gate failure keeps the worktree and exits nonzero. Inspect/steer/fix, then
+  `helm fleet resume`; it continues the latest fleet without redoing landed briefs. Workers keep
+  running if the controller stops. `--land none` gates but retains worktrees for manual review.
+  State and gate logs live in `$HELM_WORK/runs/<fleet-id>/`. Memory/disk thresholds are set by
+  `HELM_FLEET_MIN_MEMORY_MB` / `HELM_FLEET_MIN_DISK_MB`; `--max` is a worker ceiling.
+- Fleet includes gate output in PR bodies and comments with the local evidence when Actions
+  cannot run (no checks, billing or disabled Actions). Real CI failures need judgement. Helm has
+  no Slack integration; external routines can consume `helm fleet status --json`.
 - Dispatch: `helm run <model> --brief <file> --repo <path> --base <branch> --id <short-name>`.
 - Wait in the background: `helm wait <id...> --stall 10` as a background command. Its exit
   wakes you. Never poll `helm ps` or tail logs.
@@ -92,6 +109,8 @@ decide, brief, check, review and merge. Nick reviews one thing: the apex.
 ```
 helm run <model> --brief <file> [--repo <path>] [--base <branch>] [--id <name>]
 helm run <model> --review <branch|pr#> --brief <file>
+helm fleet <dir|glob> --model <m> --repo <path> [--max 4] [--gate "<cmd>"] [--land pr|none] [--retry-gate 90]
+helm fleet status [--json] | helm fleet resume
 helm wait <id...> [--stall 10]      # background; wakes you on done|question|stalled|failed
 helm ps | helm result <id> | helm logs <id> -n 40 | helm path <id>
 helm steer <id> "<message>" | helm stop <id>
