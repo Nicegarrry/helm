@@ -20,6 +20,21 @@ export function check(ids: string[], stallMin: number, since: number): string[] 
   return out;
 }
 
+export type Status = { id: string; state: Meta['state'] | 'stalled' | 'missing'; model?: string; summary?: string; question?: string; updated?: string; quietMin?: number };
+
+/** `helm status <id...> --json`: one snapshot per run for a supervisor that polls instead of waiting (QubitOS reads this).
+ * Same rules as check(): a dead worker is marked failed, a running one quiet for stallMin minutes reads as stalled. */
+export function status(ids: string[], stallMin: number): Status[] {
+  return ids.map((id) => {
+    let m: Meta;
+    try { m = readMeta(id); } catch { return { id, state: 'missing' }; }
+    if (m.state === 'running' && !alive(m.pid)) m = writeMeta(id, { state: 'failed', summary: 'worker process died without a report', pid: undefined });
+    const quietMin = Math.floor((Date.now() - lastLogAt(id)) / 60_000);
+    const state = m.state === 'running' && quietMin >= stallMin ? 'stalled' : m.state;
+    return { id, state, model: m.model, summary: m.summary, question: m.question, updated: m.updated, quietMin };
+  });
+}
+
 export async function wait(ids: string[], stallMin: number): Promise<string> {
   const watched = ids.length ? ids : listRuns().filter((m) => m.state === 'running').map((m) => m.id);
   if (!watched.length) return 'nothing running';

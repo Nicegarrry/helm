@@ -6,7 +6,7 @@ import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { commands as ghCommands, openPr, prHead } from './connectors/github.ts';
 import { HOME, ROOT, WORK, alive, requireWork, workerEnv, listRuns, loadEnv, readMeta, runDir, writeMeta, type Meta } from './lib.ts';
-import { wait } from './watcher.ts';
+import { status, wait } from './watcher.ts';
 
 loadEnv();
 const [cmd = 'help', ...rest] = process.argv.slice(2);
@@ -148,6 +148,7 @@ async function main(): Promise<string> {
     case 'path': return readMeta(args[0]).worktree;
     case 'brief': return readFileSync(join(runDir(args[0]), 'brief.md'), 'utf8');
     case 'wait': return wait(args, Number(flags.stall ?? 10));
+    case 'status': return JSON.stringify(status(args, Number(flags.stall ?? 10)));
     case 'pr': return pr();
     case 'stop': return stop();
     case 'clean': return clean();
