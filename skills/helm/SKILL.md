@@ -1,6 +1,6 @@
 ---
 name: helm
-description: Use when Nick asks you to build, fix, or ship code in a repo, work a GitHub issue or backlog, or dispatch coding work to Pi or Codex workers with the `helm` CLI. The whole loop: chat, a short strategic apex on qWork, plan and build, model choice, review, merge, ping Nick.
+description: Use when Nick asks you to build, fix, or ship code in a repo, work a GitHub issue or backlog, or dispatch coding work to Pi or Codex workers with the `helm` CLI. The whole loop: chat, a short strategic apex in Google Docs, plan and build, model choice, review, merge, ping Nick.
 ---
 
 # Helm
@@ -14,10 +14,10 @@ decide, brief, check, review and merge. Nick reviews one thing: the apex.
 1. **Chat.** Talk it through with Nick until the goal is clear. At most two sharp questions
    per round, each with your recommendation.
 2. **Apex (Nick reviews).** A 2-5 page strategic document: the goal, the approach, stack and
-   tech choices, what it looks like when done, what is out of scope. Create it as a qWork doc
-   (`qw create doc --title ... apex.md`) and give Nick the link (`https://qwork.qubitstudio.app/d/<id>`);
-   read his comments with `qw comment <id>`. If `qw` fails, write it as a Markdown file in the
-   repo's `docs/` and give Nick its path. Apply his comments. His approval covers everything through to merge.
+   tech choices, what it looks like when done, what is out of scope. Write it as a wiki page under
+   `projects/<project>/` and create the Google Doc with the `gdoc` skill; give Nick the link. When he says
+   done, `gdoc.mjs read`, apply his edits and comments, resolve them, then `gdoc.mjs pull`. If gws fails,
+   write it as a Markdown file in the repo's `docs/` and give Nick its path. His approval covers everything through to merge.
    Skip the apex for small, clear work (a bug, a well-specified issue): Nick's ask is the approval.
 3. **Plan and build (no review).** In one step, without stopping:
    - Write the detailed plan as one GitHub issue: the tickets as a checklist, each with its
