@@ -107,14 +107,6 @@ helm clean [<id>...] | helm models [provider] [--all] | helm env
 - The plan issue is closed, worktrees are gone, Nick has his one ping.
 
 ## Learnings
-After each run, append one line if you learned something: `- YYYY-MM-DD: what happened -> what to do differently`. Keep at most 20.
-- 2026-10-15: `helm pr` used the worker's summary as PR title, so squash commits on main read like reports -> set the title with `gh pr edit <n> --title "<conventional title>"` before merge
-- 2026-10-15: qWork doc drawings passed tests and a pageless walk but blanked the doc in Pages mode (1px page floats push full-width BFC blocks down); I dismissed a 4000px-tall screenshot as an artefact -> walk new doc blocks in Pages mode and treat odd element sizes as bugs until measured
-- 2026-10-15: LiveKit Cloud build of a node:slim + pnpm 12 image failed three times (lockfile packageManagerDependencies, ignored build scripts, no root CAs) -> regenerate lockfile with the pinned pnpm, ship pnpm-workspace.yaml allowBuilds, install ca-certificates; then dispatch a test job before calling a deploy done
-- 2026-10-15: parallel template-wave workers all appended to one shared test file, so every merge conflicted -> brief each batch to write its own test file up front
-- 2026-10-15: gated with `;`-chained commands and merged + deployed past a failing test -> gate with `&&` (or check each exit) before any merge or deploy
-- 2026-10-15: `next build` (Turbopack) fails in a worktree with symlinked node_modules -> `npm ci` in the worktree before building
-- 2026-10-15: auto-precision ticket took 7 Astra rounds; each fix exposed another gutter measured apart from its render -> for layout/format changes brief one shared source of truth (same function sizes and draws) and a randomized compare-vs-main probe up front
 - 2026-10-15: a wall-clock perf test flaked the full-suite gate on a loaded machine -> give timing tests a retry and record the isolated median before treating a failure as a regression
 - 2026-10-15: merged a PR from a `grep ...; gh pr merge` chain after a timing test failed alone (it was load avg 100, passed on main) -> never chain a merge after `;`, put the merge in its own call after reading the gate
 - 2026-10-16: builds "stalled" because no background `helm wait` was running after dispatch; a worker question and a finished run sat for 3h -> start `helm wait <ids>` as a background command right after every dispatch and re-arm it on each wake
@@ -128,3 +120,10 @@ After each run, append one line if you learned something: `- YYYY-MM-DD: what ha
 - 2026-10-19: browser suites run 3x flakier from helm worktrees on the T7 external drive than from the SSD checkout; 'regressions' vanished when main also ran from T7 -> baseline main from the same disk (or gate in an SSD worktree) before blaming a branch
 - 2026-10-21: `helm run --review` failed on a repo with no git remote (sidekick) -> dispatch the review as a normal read-only `helm run` whose brief says `git diff main helm/<id>`, no edits
 - 2026-10-21: twice committed with failing tests because `unittest ... | tail -1 && git commit` takes tail's exit code -> write test output to a file, capture `rc=$?`, commit only on `[ $rc -eq 0 ]`; and `git status` the worktree before merging so uncommitted fixes aren't left behind
+- 2026-10-22: a new e2e test sent a reply on the shared seeded card (blocking later seeds), and the UI change created drafts on render so resync kept deleted cards; both only showed in the full Playwright run -> run the whole e2e suite (free port if 8793 is taken), and baseline main before blaming flakes
+- 2026-10-22: a "protected paths" denylist for agent self-shipping missed the files that wire the gates (routines.py, sandbox.py, routine frontmatter `command:`); an automated review caught it in 3 rounds -> for unattended self-modification start from a fail-closed allowlist of non-executable files, and treat config-in-markdown (frontmatter) as code
+- 2026-10-22: a worker's download code passed mocked tests but Discord's CDN 403s urllib's default user agent -> run every real network path once live (temp home) before merging
+- 2026-10-23: npm ci fails in qwork worktrees on the @qubit/rail git dep (edgesOut) -> symlink or copy the main checkout's node_modules, and add new deps there via a temp npm install + copy
+- 2026-10-24: R1 screenshots in artifacts/ were committed and merged (#173) and design CSS added under docs/ blew the CSS budget for every branch -> gitignore artifacts/ and skip docs/ in budgets before dispatching UI tickets that save screenshots
+- 2026-10-24: 11 parallel group workers each produced in-scope slides that passed every check but were small-type and top-heavy; only the contact-sheet look caught it -> encode visual rules as a hard gate (e.g. min font px in the render check) before fanning out, and eyeball the first wave's contact sheets before dispatching the rest
+- 2026-10-24: gated the v3 kit PR on lib+cli tests only and broke two app/ component tests (theme colour, description) -> run the full non-browser suite (lib cli app) on any theme/kit change
