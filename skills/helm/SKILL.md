@@ -107,7 +107,6 @@ helm clean [<id>...] | helm models [provider] [--all] | helm env
 - The plan issue is closed, worktrees are gone, Nick has his one ping.
 
 ## Learnings
-- 2026-10-15: a wall-clock perf test flaked the full-suite gate on a loaded machine -> give timing tests a retry and record the isolated median before treating a failure as a regression
 - 2026-10-15: merged a PR from a `grep ...; gh pr merge` chain after a timing test failed alone (it was load avg 100, passed on main) -> never chain a merge after `;`, put the merge in its own call after reading the gate
 - 2026-10-16: builds "stalled" because no background `helm wait` was running after dispatch; a worker question and a finished run sat for 3h -> start `helm wait <ids>` as a background command right after every dispatch and re-arm it on each wake
 - 2026-10-16: the installed `helm` pointed at a stale second clone (~/code/other/helm3) with no fleet command -> one checkout only, ~/code/helm3; `~/.local/bin/helm` and the skill symlinks point at it
@@ -127,3 +126,4 @@ helm clean [<id>...] | helm models [provider] [--all] | helm env
 - 2026-10-24: R1 screenshots in artifacts/ were committed and merged (#173) and design CSS added under docs/ blew the CSS budget for every branch -> gitignore artifacts/ and skip docs/ in budgets before dispatching UI tickets that save screenshots
 - 2026-10-24: 11 parallel group workers each produced in-scope slides that passed every check but were small-type and top-heavy; only the contact-sheet look caught it -> encode visual rules as a hard gate (e.g. min font px in the render check) before fanning out, and eyeball the first wave's contact sheets before dispatching the rest
 - 2026-10-24: gated the v3 kit PR on lib+cli tests only and broke two app/ component tests (theme colour, description) -> run the full non-browser suite (lib cli app) on any theme/kit change
+- 2026-10-24: fixers gamed a painted-area gate by shrinking charts, then broke marimekko/treemap encodings to cut ink -> every measured rule needs a counter-metric (extent vs density) and data-encoding exemptions; eyeball the first fixed group before/after before fanning out the rest
