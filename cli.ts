@@ -4,7 +4,7 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
-import { commands as ghCommands, openPr, prHead } from './connectors/github.ts';
+import { checksGate, commands as ghCommands, commentPr, defaultBranch, deleteRemoteBranch, findOpenPr, mergePr, openPr, prGates, prHead } from './connectors/github.ts';
 import { HOME, ROOT, WORK, alive, requireWork, workerEnv, listRuns, loadEnv, readMeta, runDir, writeMeta, type Meta } from './lib.ts';
 import { status, wait } from './watcher.ts';
 
@@ -14,7 +14,7 @@ const flags: Record<string, string> = {};
 const args: string[] = [];
 for (let i = 0; i < rest.length; i++) {
   const a = rest[i];
-  if (a === '--draft' || a === '--all') flags[a.slice(2)] = '1';
+  if (a === '--draft' || a === '--all' || a === '--stacked') flags[a.slice(2)] = '1';
   else if (a.startsWith('--')) flags[a.slice(2)] = rest[++i] ?? '';
   else if (a === '-R' || a === '-n') flags[a.slice(1)] = rest[++i] ?? '';
   else args.push(a);
@@ -121,6 +121,50 @@ function clean(): string {
   return `cleaned ${done.length} run(s)`;
 }
 
+/** Merge a run's PR once every gate passes, confirm MERGED, then clean up. Any refusal or failed merge leaves everything in place. */
+function land(): string {
+  const [id] = args;
+  const method = flags['merge-method'] ?? 'squash';
+  const allowRed = flags['allow-red'];
+  if (!id) throw new Error('usage: helm land <id> [--allow-red "<reason>"] [--stacked] [--merge-method squash|merge|rebase]');
+  if (!['squash', 'merge', 'rebase'].includes(method)) throw new Error(`unknown merge method ${method}`);
+  if (allowRed !== undefined && (!allowRed.trim() || allowRed.startsWith('--'))) throw new Error('--allow-red needs a reason');
+  const meta = readMeta(id);
+  if (meta.role !== 'build') throw new Error(`refused\n${id} is a ${meta.role} run, only build runs land`);
+
+  const fails: string[] = [];
+  if (meta.state === 'running' && alive(meta.pid)) fails.push(`${id} is still running`);
+  const head = existsSync(meta.worktree) ? tryGit(meta.worktree, 'rev-parse', 'HEAD') : null;
+  if (!head) fails.push(`worktree missing: ${meta.worktree}`);
+  else if (git(meta.worktree, 'status', '--porcelain')) fails.push('worktree has uncommitted changes');
+  const p = findOpenPr(meta.branch, meta.repo);
+  if (typeof p === 'string') throw new Error(`refused\n${[...fails, p].join('\n')}`);
+  if (head && head !== p.headRefOid) fails.push(`local HEAD ${head.slice(0, 7)} is not PR head ${p.headRefOid.slice(0, 7)} (unpushed work?)`);
+  fails.push(...prGates(p, flags.stacked ? null : defaultBranch(meta.repo)));
+  const red = checksGate(p);
+  if (red && allowRed === undefined) fails.push(`${red} (--allow-red "<reason>" to override)`);
+  if (fails.length) throw new Error(`refused\n${fails.join('\n')}`);
+
+  if (red) commentPr(p.number, `Merged with \`helm land --allow-red\`: ${allowRed}\n\nAt ${p.headRefOid.slice(0, 7)}: ${red}.`, meta.repo);
+  const merged = mergePr(p.number, p.headRefOid, method, meta.repo);
+  if (!merged.sha) throw new Error(`not merged, nothing cleaned: ${merged.error}`);
+
+  const cleaned: string[] = [];
+  const left: string[] = [];
+  const step = (name: string, ok: boolean) => (ok ? cleaned : left).push(name);
+  step('remote branch', deleteRemoteBranch(meta.branch, meta.repo));
+  step('worktree', tryGit(meta.repo, 'worktree', 'remove', '--force', meta.worktree) !== null);
+  step('local branch', tryGit(meta.repo, 'branch', '-D', meta.branch) !== null);
+  rmSync(runDir(id), { recursive: true, force: true });
+  cleaned.push('run folder');
+
+  const base = p.baseRefName;
+  const onBase = tryGit(meta.repo, 'rev-parse', '--abbrev-ref', 'HEAD') === base;
+  const tidy = tryGit(meta.repo, 'status', '--porcelain', '--untracked-files=no') === '';
+  const synced = onBase && tidy && tryGit(meta.repo, 'fetch', 'origin', base) !== null && tryGit(meta.repo, 'merge', '--ff-only', `origin/${base}`) !== null;
+  return `${p.url} merged ${merged.sha.slice(0, 7)} · cleaned ${cleaned.join(', ')}${left.length ? ` · NOT cleaned ${left.join(', ')}` : ''} · local ${base} ${synced ? 'updated' : 'not updated'}`;
+}
+
 /** Symlink every skill into ~/.claude/skills (and ~/.codex/skills if Codex is installed). */
 function install(): string {
   const targets = [join(homedir(), '.claude', 'skills')];
@@ -150,6 +194,7 @@ async function main(): Promise<string> {
     case 'wait': return wait(args, Number(flags.stall ?? 10));
     case 'status': return JSON.stringify(status(args, Number(flags.stall ?? 10)));
     case 'pr': return pr();
+    case 'land': return land();
     case 'stop': return stop();
     case 'clean': return clean();
     case 'gh': {

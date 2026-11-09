@@ -98,4 +98,59 @@ export function prHead(n: string, cwd: string): { branch: string; base: string }
   return { branch: p.headRefName, base: p.baseRefName };
 }
 
+/** The single open PR for a branch, or why there isn't one. */
+export function findOpenPr(branch: string, cwd: string): any | string {
+  const open = ghJson(['pr', 'list', '--head', branch, '--state', 'open', '--json', 'number'], cwd);
+  if (open.length !== 1) return `${open.length} open PRs for ${branch}, need exactly 1`;
+  return ghJson(['pr', 'view', String(open[0].number), '--json', PR_FIELDS], cwd);
+}
+
+export function defaultBranch(cwd: string): string {
+  return ghJson(['repo', 'view', '--json', 'defaultBranchRef'], cwd).defaultBranchRef.name;
+}
+
+/** Everything that blocks landing except checks. One line per failed gate. */
+export function prGates(p: any, base: string | null): string[] {
+  const fails: string[] = [];
+  if (p.isDraft) fails.push('PR is a draft');
+  if (p.mergeable !== 'MERGEABLE') fails.push(`PR mergeable is ${p.mergeable}`);
+  if (p.reviewDecision === 'CHANGES_REQUESTED') fails.push('a review requests changes');
+  if (base !== null && p.baseRefName !== base) fails.push(`PR targets ${p.baseRefName}, not ${base} (--stacked to allow)`);
+  const t = String(p.title ?? '').trim();
+  const sha = /\b(?=[0-9a-f]*[a-f])(?=[0-9a-f]*[0-9])[0-9a-f]{7,40}\b/;
+  if (!t || /^(committed|done|finished)\b/i.test(t) || sha.test(t)) fails.push(`PR title is junk: "${t}" (gh pr edit --title)`);
+  return fails;
+}
+
+/** Why checks aren't green, or null when at least one exists and all pass. */
+export function checksGate(p: any): string | null {
+  const cs = checks(p.statusCheckRollup);
+  if (!cs.length) return 'PR has no checks';
+  const open = cs.filter((c) => c.state !== 'pass');
+  return open.length ? `checks not green: ${open.map((c) => `${c.state} ${c.name}`).join(', ')}` : null;
+}
+
+export function commentPr(n: number, body: string, cwd: string): void {
+  gh(['pr', 'comment', String(n), '--body', body], cwd);
+}
+
+/** Merge at exactly this head, then read back what GitHub says. Never `--admin`. */
+export function mergePr(n: number, sha: string, method: string, cwd: string): { sha?: string; error?: string } {
+  let error: string | undefined;
+  try {
+    execFileSync('gh', ['pr', 'merge', String(n), `--${method}`, '--match-head-commit', sha], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  } catch (e: any) { error = String(e.stderr || e.message).trim().replace(/\s+/g, ' '); }
+  const after = ghJson(['pr', 'view', String(n), '--json', 'state,mergeCommit'], cwd);
+  return after.state === 'MERGED' ? { sha: after.mergeCommit?.oid ?? sha } : { error: error ?? `PR state is ${after.state}` };
+}
+
+/** True once the branch is gone from origin. Keeps it while an open PR is based on it, since deleting would close that PR. */
+export function deleteRemoteBranch(branch: string, cwd: string): boolean {
+  try {
+    if (ghJson(['pr', 'list', '--base', branch, '--state', 'open', '--json', 'number'], cwd).length) return false;
+  } catch { return false; }
+  try { execFileSync('git', ['push', 'origin', '--delete', branch], { cwd, stdio: 'ignore' }); return true; } catch { /* maybe already gone */ }
+  try { return !execFileSync('git', ['ls-remote', '--heads', 'origin', branch], { cwd, encoding: 'utf8' }).trim(); } catch { return false; }
+}
+
 export const commands: Record<string, (n: string, repo: string[]) => string> = { pr, checks: prChecks, fail, comments, issue };

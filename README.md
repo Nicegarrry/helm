@@ -86,6 +86,9 @@ helm pr <id> [--draft]            commit leftovers, push, open the PR (re-run to
 helm gh pr|checks|fail|comments|issue <n> [-R owner/repo]
                                   compact GitHub reads: state line, failing checks, failing log
                                   tail, unresolved threads, issue + last 3 comments
+helm land <id> [--allow-red "<reason>"] [--stacked] [--merge-method squash|merge|rebase]
+                                  check the PR's gates, merge it at the checked head, confirm
+                                  MERGED, then remove its branches, worktree and run folder
 helm clean [<id>...] [--all]      remove finished worktrees (and run folders for named ids / --all)
 helm models [provider] [--all]    models with credentials (or the whole Pi catalog), plus Codex's
 helm env                          which keys are set
