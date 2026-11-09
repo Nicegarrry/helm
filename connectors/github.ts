@@ -140,16 +140,18 @@ export function mergePr(n: number, sha: string, method: string, cwd: string): { 
   try {
     execFileSync('gh', ['pr', 'merge', String(n), `--${method}`, '--match-head-commit', sha], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (e: any) { error = String(e.stderr || e.message).trim().replace(/\s+/g, ' '); }
-  const after = ghJson(['pr', 'view', String(n), '--json', 'state,mergeCommit'], cwd);
-  return after.state === 'MERGED' ? { sha: after.mergeCommit?.oid ?? sha } : { error: error ?? `PR state is ${after.state}` };
+  const after = ghJson(['pr', 'view', String(n), '--json', 'state,mergeCommit,headRefOid'], cwd);
+  if (after.state !== 'MERGED') return { error: error ?? `PR state is ${after.state}` };
+  if (after.headRefOid !== sha) return { error: `PR merged at ${after.headRefOid.slice(0, 7)}, not the checked ${sha.slice(0, 7)}` };
+  return { sha: after.mergeCommit?.oid ?? sha };
 }
 
-/** True once the branch is gone from origin. Keeps it while an open PR is based on it, since deleting would close that PR. */
-export function deleteRemoteBranch(branch: string, cwd: string): boolean {
+/** True once the branch is gone from origin. Keeps it while an open PR is based on it (deleting would close that PR) or if it moved past `sha`. */
+export function deleteRemoteBranch(branch: string, sha: string, cwd: string): boolean {
   try {
     if (ghJson(['pr', 'list', '--base', branch, '--state', 'open', '--json', 'number'], cwd).length) return false;
   } catch { return false; }
-  try { execFileSync('git', ['push', 'origin', '--delete', branch], { cwd, stdio: 'ignore' }); return true; } catch { /* maybe already gone */ }
+  try { execFileSync('git', ['push', `--force-with-lease=refs/heads/${branch}:${sha}`, 'origin', `:refs/heads/${branch}`], { cwd, stdio: 'ignore' }); return true; } catch { /* moved, or already gone */ }
   try { return !execFileSync('git', ['ls-remote', '--heads', 'origin', branch], { cwd, encoding: 'utf8' }).trim(); } catch { return false; }
 }
 

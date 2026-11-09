@@ -136,10 +136,12 @@ function land(): string {
   if (meta.state === 'running' && alive(meta.pid)) fails.push(`${id} is still running`);
   const head = existsSync(meta.worktree) ? tryGit(meta.worktree, 'rev-parse', 'HEAD') : null;
   if (!head) fails.push(`worktree missing: ${meta.worktree}`);
-  else if (git(meta.worktree, 'status', '--porcelain')) fails.push('worktree has uncommitted changes');
+  else if (git(meta.worktree, 'status', '--porcelain', '--untracked-files=all')) fails.push('worktree has uncommitted changes');
   const p = findOpenPr(meta.branch, meta.repo);
   if (typeof p === 'string') throw new Error(`refused\n${[...fails, p].join('\n')}`);
   if (head && head !== p.headRefOid) fails.push(`local HEAD ${head.slice(0, 7)} is not PR head ${p.headRefOid.slice(0, 7)} (unpushed work?)`);
+  const tip = tryGit(meta.repo, 'rev-parse', '--verify', `refs/heads/${meta.branch}`);
+  if (tip !== p.headRefOid) fails.push(`local branch ${meta.branch} is at ${tip?.slice(0, 7) ?? 'nothing'}, not PR head ${p.headRefOid.slice(0, 7)}`);
   fails.push(...prGates(p, flags.stacked ? null : defaultBranch(meta.repo)));
   const red = checksGate(p);
   if (red && allowRed === undefined) fails.push(`${red} (--allow-red "<reason>" to override)`);
@@ -152,7 +154,7 @@ function land(): string {
   const cleaned: string[] = [];
   const left: string[] = [];
   const step = (name: string, ok: boolean) => (ok ? cleaned : left).push(name);
-  step('remote branch', deleteRemoteBranch(meta.branch, meta.repo));
+  step('remote branch', deleteRemoteBranch(meta.branch, p.headRefOid, meta.repo));
   step('worktree', tryGit(meta.repo, 'worktree', 'remove', '--force', meta.worktree) !== null);
   step('local branch', tryGit(meta.repo, 'branch', '-D', meta.branch) !== null);
   rmSync(runDir(id), { recursive: true, force: true });
