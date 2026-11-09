@@ -102,7 +102,7 @@ export function prHead(n: string, cwd: string): { branch: string; base: string }
 export function findOpenPr(branch: string, cwd: string): any | string {
   const open = ghJson(['pr', 'list', '--head', branch, '--state', 'open', '--json', 'number'], cwd);
   if (open.length !== 1) return `${open.length} open PRs for ${branch}, need exactly 1`;
-  return ghJson(['pr', 'view', String(open[0].number), '--json', `${PR_FIELDS},latestReviews`], cwd);
+  return ghJson(['pr', 'view', String(open[0].number), '--json', `${PR_FIELDS},reviews`], cwd);
 }
 
 export function defaultBranch(cwd: string): string {
@@ -114,9 +114,16 @@ export function prGates(p: any, base: string | null): string[] {
   const fails: string[] = [];
   if (p.isDraft) fails.push('PR is a draft');
   if (p.mergeable !== 'MERGEABLE') fails.push(`PR mergeable is ${p.mergeable}`);
-  // reviewDecision is empty on repos that don't require reviews, so read each reviewer's latest review too.
-  if (!Array.isArray(p.latestReviews)) fails.push('could not read reviews');
-  else if (p.reviewDecision === 'CHANGES_REQUESTED' || p.latestReviews.some((r: any) => r.state === 'CHANGES_REQUESTED')) fails.push('a review requests changes');
+  // reviewDecision is empty on repos that don't require reviews, so also take each reviewer's last
+  // opinionated review. A plain comment after a change request must not hide it.
+  if (!Array.isArray(p.reviews)) fails.push('could not read reviews');
+  else {
+    const last = new Map<string, string>();
+    for (const r of [...p.reviews].sort((a, b) => String(a.submittedAt).localeCompare(String(b.submittedAt)))) {
+      if (['APPROVED', 'CHANGES_REQUESTED', 'DISMISSED'].includes(r.state)) last.set(r.author?.login || r.id, r.state);
+    }
+    if (p.reviewDecision === 'CHANGES_REQUESTED' || [...last.values()].includes('CHANGES_REQUESTED')) fails.push('a review requests changes');
+  }
   if (base !== null && p.baseRefName !== base) fails.push(`PR targets ${p.baseRefName}, not ${base} (--stacked to allow)`);
   const t = String(p.title ?? '').trim();
   const sha = /\b(?=[0-9a-f]*[a-f])(?=[0-9a-f]*[0-9])[0-9a-f]{7,40}\b/;
