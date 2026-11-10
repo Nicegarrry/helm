@@ -1,8 +1,8 @@
 // `helm wait`: block until a watched run ends, asks a question, dies or stalls, print one line, exit.
 // The orchestrator runs it as a background command, so the exit is what wakes it. HELM_NOTIFY, if set,
 // is a shell command that also gets the line (as $HELM_EVENT), e.g. a Discord webhook or a push.
-import { execSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { execFileSync, execSync } from 'node:child_process';
+import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { alive, lastLogAt, listRuns, readMeta, runDir, writeMeta, type Meta } from './lib.ts';
 
@@ -37,7 +37,13 @@ export function status(ids: string[], stallMin: number): Status[] {
   });
 }
 
-const hasWatcher = (id: string) => { try { return alive(Number(readFileSync(join(runDir(id), 'waiter'), 'utf8'))); } catch { return false; } };
+const waiters = (id: string) => join(runDir(id), 'waiters');
+
+/** A killed watcher leaves its marker behind, so check the pid is still a `helm wait` and not a recycled one. */
+const isWaiter = (pid: string) => {
+  try { return execFileSync('ps', ['-o', 'command=', '-p', pid], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).includes('cli.ts wait'); } catch { return false; }
+};
+const hasWatcher = (id: string) => { try { return readdirSync(waiters(id)).some(isWaiter); } catch { return false; } };
 
 /** `helm guard`: Claude Code Stop hook. Blocks the turn end once when this session has running workers and no
  * live `helm wait`, because nothing would wake it. Any error allows the stop, so a helm fault can't trap a session. */
@@ -54,17 +60,22 @@ export function guard(stdin: string): string {
 export async function wait(ids: string[], stallMin: number): Promise<string> {
   const watched = ids.length ? ids : listRuns().filter((m) => m.state === 'running').map((m) => m.id);
   if (!watched.length) return 'nothing running';
-  for (const id of watched) writeFileSync(join(runDir(id), 'waiter'), String(process.pid)); // read by guard(), not meta.json: a connector may be writing that
+  // One marker per watcher, read by guard(). Not in meta.json, which a connector may be writing.
+  for (const id of watched) { mkdirSync(waiters(id), { recursive: true }); writeFileSync(join(waiters(id), String(process.pid)), ''); }
   const since = Date.now();
-  for (;;) {
-    const events = check(watched, stallMin, since);
-    if (events.length) {
-      const text = events.join('\n');
-      if (process.env.HELM_NOTIFY) {
-        try { execSync(process.env.HELM_NOTIFY, { env: { ...process.env, HELM_EVENT: text }, stdio: 'ignore' }); } catch { /* best effort */ }
+  try {
+    for (;;) {
+      const events = check(watched, stallMin, since);
+      if (events.length) {
+        const text = events.join('\n');
+        if (process.env.HELM_NOTIFY) {
+          try { execSync(process.env.HELM_NOTIFY, { env: { ...process.env, HELM_EVENT: text }, stdio: 'ignore' }); } catch { /* best effort */ }
+        }
+        return text;
       }
-      return text;
+      await new Promise((r) => setTimeout(r, 5_000));
     }
-    await new Promise((r) => setTimeout(r, 5_000));
+  } finally {
+    for (const id of watched) rmSync(join(waiters(id), String(process.pid)), { force: true });
   }
 }
