@@ -2,7 +2,9 @@
 // The orchestrator runs it as a background command, so the exit is what wakes it. HELM_NOTIFY, if set,
 // is a shell command that also gets the line (as $HELM_EVENT), e.g. a Discord webhook or a push.
 import { execSync } from 'node:child_process';
-import { alive, lastLogAt, listRuns, readMeta, writeMeta, type Meta } from './lib.ts';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { alive, lastLogAt, listRuns, readMeta, runDir, writeMeta, type Meta } from './lib.ts';
 
 const line = (m: Meta, why: string) => `${m.id} ${why} · ${m.model} · ${m.question ?? m.summary ?? ''}`.trim();
 
@@ -35,9 +37,24 @@ export function status(ids: string[], stallMin: number): Status[] {
   });
 }
 
+const hasWatcher = (id: string) => { try { return alive(Number(readFileSync(join(runDir(id), 'waiter'), 'utf8'))); } catch { return false; } };
+
+/** `helm guard`: Claude Code Stop hook. Blocks the turn end once when this session has running workers and no
+ * live `helm wait`, because nothing would wake it. Any error allows the stop, so a helm fault can't trap a session. */
+export function guard(stdin: string): string {
+  try {
+    const { session_id, stop_hook_active } = JSON.parse(stdin);
+    if (!session_id || stop_hook_active) return '';
+    const ids = listRuns().filter((m) => m.owner === session_id && m.state === 'running' && alive(m.pid) && !hasWatcher(m.id)).map((m) => m.id);
+    if (!ids.length) return '';
+    return JSON.stringify({ decision: 'block', reason: `Helm runs with no live watcher: ${ids.join(' ')}. Start \`helm wait ${ids.join(' ')} --stall 10\` as a background command, then end your turn.` });
+  } catch { return ''; }
+}
+
 export async function wait(ids: string[], stallMin: number): Promise<string> {
   const watched = ids.length ? ids : listRuns().filter((m) => m.state === 'running').map((m) => m.id);
   if (!watched.length) return 'nothing running';
+  for (const id of watched) writeFileSync(join(runDir(id), 'waiter'), String(process.pid)); // read by guard(), not meta.json: a connector may be writing that
   const since = Date.now();
   for (;;) {
     const events = check(watched, stallMin, since);

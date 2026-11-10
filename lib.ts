@@ -31,6 +31,7 @@ export type Meta = {
   id: string; model: string; role: 'build' | 'review'; repo: string; worktree: string;
   branch: string; base: string; state: State; pid?: number; session?: string;
   summary?: string; question?: string; created: string; updated: string; turns: number;
+  owner?: string; // the Claude Code session that dispatched this run, for `helm guard`
 };
 
 export const runDir = (id: string) => join(RUNS, id);

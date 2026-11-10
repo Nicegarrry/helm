@@ -76,6 +76,8 @@ helm wait [<id>...] [--stall 10]  block until a run is done/failed/question/stal
                                   Run it in the background: its exit is the ping. HELM_NOTIFY too.
 helm status <id...> [--stall 10]  JSON snapshot per run, no blocking (state adds stalled|missing);
                                   for a supervisor that polls instead of waiting
+helm guard                        Claude Code Stop hook (hook JSON on stdin): blocks the turn end once
+                                  if this session's running workers have no live `helm wait`
 helm steer <id> "<message>"       next turn in the same session (or --file <path>)
 helm ps                           one line per run
 helm result <id>                  the worker's final message

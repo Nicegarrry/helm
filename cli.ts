@@ -6,7 +6,7 @@ import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { checksGate, commands as ghCommands, commentPr, defaultBranch, deleteRemoteBranch, findOpenPr, mergePr, openPr, prGates, prHead } from './connectors/github.ts';
 import { HOME, ROOT, WORK, alive, requireWork, workerEnv, listRuns, loadEnv, readMeta, runDir, writeMeta, type Meta } from './lib.ts';
-import { status, wait } from './watcher.ts';
+import { guard, status, wait } from './watcher.ts';
 
 loadEnv();
 const [cmd = 'help', ...rest] = process.argv.slice(2);
@@ -66,7 +66,7 @@ function run(): string {
   mkdirSync(runDir(id), { recursive: true });
   writeFileSync(join(runDir(id), 'brief.md'), brief);
   const now = new Date().toISOString();
-  writeMeta(id, { id, model, role, repo, worktree, branch, base, state: 'running', created: now, turns: 0 });
+  writeMeta(id, { id, model, role, repo, worktree, branch, base, state: 'running', created: now, turns: 0, owner: process.env.CLAUDE_CODE_SESSION_ID });
   startTurn(id, join(runDir(id), 'brief.md'));
   return `${id} started · ${model} · ${role === 'review' ? `reviewing ${branch}` : branch} · ${worktree}`;
 }
@@ -195,6 +195,7 @@ async function main(): Promise<string> {
     case 'brief': return readFileSync(join(runDir(args[0]), 'brief.md'), 'utf8');
     case 'wait': return wait(args, Number(flags.stall ?? 10));
     case 'status': return JSON.stringify(status(args, Number(flags.stall ?? 10)));
+    case 'guard': return guard(readFileSync(0, 'utf8'));
     case 'pr': return pr();
     case 'land': return land();
     case 'stop': return stop();
@@ -219,4 +220,4 @@ async function main(): Promise<string> {
   }
 }
 
-main().then((out) => console.log(out), (err) => { console.error(`helm ${cmd}: ${err.message}`); process.exit(1); });
+main().then((out) => { if (out) console.log(out); }, (err) => { console.error(`helm ${cmd}: ${err.message}`); process.exit(1); });
