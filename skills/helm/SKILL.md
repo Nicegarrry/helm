@@ -1,13 +1,25 @@
 ---
 name: helm
-description: Use when Nick asks you to build, fix, or ship code in a repo, work a GitHub issue or backlog, or dispatch coding work to Pi or Codex workers with the `helm` CLI. The whole loop: chat, a short strategic apex in qWork, plan and build, model choice, review, merge, ping Nick.
+description: Use when Nick asks you to build, fix, or ship code on a Mac with workers (Codex, agy, OpenRouter through Pi) via the `helm` CLI, in qos or any repo under ~/Developer. In qos it is qhelm's build step; elsewhere the whole loop. Lanes, default models, limits and setup for this machine.
 ---
 
 # Helm
 
-How Nick gets code built. You are the orchestrator and the expensive model. Cheap workers
-(Codex, Pi on OpenCode Go or OpenRouter) write most of the code in their own worktrees. You
-decide, brief, check, review and merge. Nick reviews one thing: the apex.
+How Nick gets code built. You are the orchestrator and the expensive model. Workers (Codex,
+agy, OpenRouter models through Pi) write most of the code in their own worktrees. You decide,
+brief, check, review and merge. Nick reviews one thing: the apex.
+
+**In qos, follow `qhelm`** for plan, review, ship and wrap, and use this skill for its step 2,
+Build. In any other repo, this skill is the whole loop.
+
+## Roles
+
+- **Orchestrator: you, Opus, in the Claude Code CLI.** Cut tickets, write briefs, dispatch, read
+  diffs, merge. Do shared contracts and changes under about 200 lines yourself.
+- **Supervisor: Fable, as a subagent.** Cutting the plan into tickets, the final review of the
+  whole diff, and any ticket that failed twice.
+- **Workers: outside Claude, through `helm run`,** in the lane order in `priorities.md`: one
+  default model per lane. Claude subagents are the last fallback.
 
 ## The loop
 
@@ -27,7 +39,7 @@ decide, brief, check, review and merge. Nick reviews one thing: the apex.
      names other tickets depend on) and changes under ~200 lines yourself, first.
    - A ticket is one concern, one worker run, one PR, under half the model's context window.
      Tickets that touch different files run in parallel, at most 3-4 at once.
-   - Write each brief from `brief.md` in this folder, pick a model (`models.md`), and
+   - Write each brief from `brief.md` in this folder, take the lane and default model from `priorities.md`, and
      `helm run`. Start every independent ticket, then wait.
 4. **Review (no Nick).** Check each diff yourself, then get a review from a different model
    family (`review.md`). Fix every real blocking finding.
@@ -44,14 +56,14 @@ decide, brief, check, review and merge. Nick reviews one thing: the apex.
   - **done:** `helm result <id>`, then check the work (below).
   - **question:** answer with `helm steer <id> "<answer>"` when the brief or code settles it.
   - **stalled:** `helm logs <id> -n 40`. Steer with a concrete hint, or `helm stop` and re-run.
-  - **failed:** brief unclear, fix it and re-run. Too hard, one tier up. Provider error
+  - **failed:** brief unclear, fix it and re-run. Too hard, take it over yourself or hand it to Fable. Provider error
     (429, quota, auth), report it verbatim and switch lane.
 - Check the work: in `helm path <id>`, `git diff --stat <base>`, read the hunks that matter,
   run the brief's verify command, tick each acceptance check. The worker's report says where
   to look, not what is true.
 - Wrong: steer once with everything (what fails, ten lines of evidence, "fix exactly this,
   don't change the tests"). After two steers on the same problem, rewrite the brief and
-  re-run a tier up, or take over in the same worktree.
+  re-run on the next lane, or take over in the same worktree.
 
 ## Shipping
 
@@ -76,6 +88,20 @@ decide, brief, check, review and merge. Nick reviews one thing: the apex.
 6. `helm land` confirms the merge, then removes the remote and local branch, worktree and run
    folder and fast-forwards the main checkout. Tick the ticket on the plan issue; close it when the
    last one lands.
+
+## This Mac
+
+- `helm` is linked into `~/.local/bin` from `~/Developer/helm`. Change helm by PR here (Nicegarrry/helm).
+  `helm install` links this skill into `~/.claude/skills`.
+- `~/code/QOS/qos` is a symlink to `~/Developer/qos`, so qos docs that name that path still work.
+- Credentials: Codex, agy, `gh` and Claude use their own logins. The only key is
+  `OPENROUTER_API_KEY`, in `~/.helm/.env` (mode 600). `helm env` shows what is set, names only.
+- Runs and worktrees go in `HELM_WORK=~/helm-work`. `helm run` copies each gitignored
+  `.env.keys` into the new worktree, so `qsync keys` is not needed.
+- Limits: `uptime` first; a load average above about 12 means wait. MacBook Pro (18 cores,
+  64 GB): at most 4 workers, 2 if any runs a browser or full build. Mac mini: at most 2 build or
+  browser workers across all sessions. At most 3 tickets a wave in qos.
+- Run the first ticket of a plan alone, end to end, before the rest.
 
 ## Principles
 

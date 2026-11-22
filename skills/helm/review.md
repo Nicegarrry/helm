@@ -1,7 +1,7 @@
 # Reviewing a change
 
-1. Pick the reviewer: a different model family from the builder, at least as strong
-   (`models.md`). You count as a different family, but you are expensive: read small diffs
+1. Pick the reviewer: a different model family from the builder, on its default model
+   (`priorities.md`). You count as a different family, but you are expensive: read small diffs
    yourself, dispatch bigger ones.
 2. `helm run <model> --review <branch|pr#> --brief <file>` with the original brief plus the
    riskiest areas. `agents/reviewer.md` tells it how to report: `blocking:` and `nit:` findings
