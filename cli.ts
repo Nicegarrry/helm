@@ -1,7 +1,7 @@
 // helm: the deterministic bits the skills call. See README.md for the command list.
 import { execFileSync, spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { checksGate, commands as ghCommands, commentPr, defaultBranch, deleteRemoteBranch, findOpenPr, mergePr, openPr, prGates, prHead } from './connectors/github.ts';
@@ -28,13 +28,24 @@ const age = (iso: string) => { const m = Math.floor((Date.now() - Date.parse(iso
 /** Start one worker turn as a detached process; the connector writes log.txt and result.md. */
 function startTurn(id: string, promptFile: string): void {
   const meta = readMeta(id);
-  const connector = join(ROOT, 'connectors', meta.model.startsWith('codex/') ? 'codex.ts' : 'pi.ts');
+  const lane = meta.model.startsWith('codex/') ? 'codex' : meta.model.startsWith('agy/') ? 'agy' : 'pi';
+  const connector = join(ROOT, 'connectors', `${lane}.ts`);
   const out = openSync(join(runDir(id), 'stderr.log'), 'a');
   writeMeta(id, { state: 'running', turns: meta.turns + 1, question: undefined });
   const child = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', connector, id, promptFile],
     { cwd: meta.worktree, detached: true, stdio: ['ignore', out, out], env: workerEnv() });
   child.unref();
   if (readMeta(id).state === 'running') writeMeta(id, { pid: child.pid }); // a very fast turn may already be done
+}
+
+/** Copy each gitignored .env.keys beside a tracked env file from the repo into the new worktree. */
+function copyEnvKeys(repo: string, worktree: string): void {
+  const dirs = new Set((tryGit(repo, 'ls-files', '--', '.env*', '**/.env*') ?? '').split('\n').filter(Boolean)
+    .map((f) => f.includes('/') ? f.slice(0, f.lastIndexOf('/')) : '.'));
+  for (const dir of dirs) {
+    const from = join(repo, dir, '.env.keys'), to = join(worktree, dir, '.env.keys');
+    if (existsSync(from) && !existsSync(to) && tryGit(repo, 'check-ignore', '-q', join(dir, '.env.keys')) !== null) copyFileSync(from, to);
+  }
 }
 
 function run(): string {
@@ -61,6 +72,7 @@ function run(): string {
     tryGit(repo, 'fetch', 'origin', base);
     const start = tryGit(repo, 'rev-parse', '--verify', `origin/${base}`) ? `origin/${base}` : base;
     git(repo, 'worktree', 'add', '-b', branch, worktree, start);
+    copyEnvKeys(repo, worktree);
   }
 
   mkdirSync(runDir(id), { recursive: true });
@@ -212,7 +224,12 @@ async function main(): Promise<string> {
         const json = JSON.parse(execFileSync(process.env.HELM_CODEX_BIN ?? 'codex', ['debug', 'models'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }));
         codex = (json.models ?? []).map((m: any) => `codex/${typeof m === 'string' ? m : m.slug}`).join('\n');
       } catch { codex = '(codex not available)'; }
-      return `${out.trim()}\n\ncodex:\n${codex.trim()}`;
+      let agy = '';
+      try {
+        agy = execFileSync(process.env.HELM_AGY_BIN ?? 'agy', ['models'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+          .split('\n').filter((l) => l.includes('\t')).map((l) => `agy/${l.split('\t')[0]}`).join('\n');
+      } catch { agy = '(agy not available)'; }
+      return `${out.trim()}\n\ncodex:\n${codex.trim()}\n\nagy:\n${agy.trim()}`;
     }
     case 'env': return env();
     case 'install': return install();
