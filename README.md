@@ -14,6 +14,7 @@ agents/            worker.md, reviewer.md: system prompts every worker gets, on 
 connectors/        every external interface
   pi.ts            our Pi agent: Pi's coding tools + agents/*.md, resumable session per run
   codex.ts         one `codex exec --json` turn, resumable thread per run
+  agy.ts           one `agy -p --output-format stream-json` turn, resumable conversation per run
   github.ts        `gh`, printed as a few compact lines
 cli.ts             the `helm` command
 watcher.ts         `helm wait`: wakes the orchestrator when a run ends, asks or stalls
@@ -58,6 +59,7 @@ repo; the links pick up changes immediately.
 | `openrouter/<vendor>/<model>[:thinking]` | Pi, in-process | OpenRouter per token (`OPENROUTER_API_KEY`) |
 | any other Pi `provider/model` | Pi, in-process | that provider's key, or Pi's `~/.pi/agent/auth.json` |
 | `codex/<model>[:effort]` | Codex CLI | ChatGPT subscription |
+| `agy/<model>` | agy CLI (`agy models` lists ids) | Antigravity subscription (`agy` login) |
 
 OpenCode Go is built into Pi 0.85.1 as the `opencode-go` provider, and Pi sends the
 `x-opencode-session` header OpenCode asks third-party agents for, so no opencode harness is
